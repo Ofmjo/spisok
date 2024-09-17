@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Список покупок</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@latest/dist/tailwind.min.css" rel="stylesheet">
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/vue@2.6.14/dist/vue.js"></script>
+</head>
+<body class="bg-gray-900 text-white">
+
+    <div id="app">
+        <!-- Шапка -->
+        <header class="bg-gray-800 shadow p-4">
+            <h1 class="text-xl font-bold">{{ title }}</h1>
+        </header>
+
+        <!-- Контентная часть -->
+        <main class="p-4">
+            <div v-if="currentPage === 'home'">
+                <input v-model="newProduct" @keyup.enter="addProduct" placeholder="Добавить продукт" class="p-2 rounded bg-gray-700 text-white w-full mb-2" />
+                <ul class="space-y-2">
+                    <li v-for="(product, index) in products" :key="index" class="bg-gray-700 p-2 rounded flex justify-between items-center">
+                        {{ product.name }}
+                        <div class="flex items-center">
+                            <button @click="removeProduct(index)" class="text-red-500 hover:text-red-700">
+                                &#10006; <!-- Крестик -->
+                            </button>
+                            <button @click="openModal(product)" class="ml-2 text-green-500 hover:text-green-700">
+                                Подтвердить покупку
+                            </button>
+                        </div>
+                    </li>
+                </ul>
+            </div>
+            <div v-if="currentPage === 'purchased'">
+                <div v-for="(month, index) in groupedPurchasedProducts" :key="index" class="mt-4">
+                    <div class="flex justify-between items-center">
+                        <h2 class="text-lg font-bold">{{ month.month }} - Общая стоимость: {{ month.totalCost }}₽</h2>
+                    </div>
+                    <ul class="space-y-2 mt-2">
+                        <li v-for="(purchased, idx) in month.products" :key="idx" class="bg-gray-600 p-2 rounded flex justify-between items-center">
+                            <span>{{ purchased.name }}</span>
+                            <span class="text-gray-300">{{ purchased.quantity }} шт @ {{ purchased.price }}₽</span>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </main>
+
+        <!-- Модальное окно -->
+        <div id="purchaseModal" class="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 hidden">
+            <div class="bg-gray-800 p-6 rounded shadow-lg">
+                <h2 class="text-lg font-bold mb-4">Подтверждение покупки</h2>
+                <label class="block mb-2">Количество:</label>
+                <input type="number" v-model="modalQuantity" class="p-2 rounded bg-gray-700 text-white w-full mb-4" />
+                <label class="block mb-2">Цена:</label>
+                <input type="number" v-model="modalPrice" class="p-2 rounded bg-gray-700 text-white w-full mb-4" />
+                <div class="flex justify-end">
+                    <button @click="confirmPurchase" class="bg-green-500 p-2 rounded mr-2">Подтвердить</button>
+                    <button @click="closeModal" class="bg-red-500 p-2 rounded">Отмена</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Навигационная панель -->
+        <nav class="fixed bottom-0 left-0 right-0 bg-gray-800 shadow">
+            <div class="flex justify-around p-2">
+                <a href="#" @click.prevent="changePage('home')" class="flex flex-col items-center text-gray-400 hover:text-blue-500">
+                    <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20"><path d="M10 0a10 10 0 100 20A10 10 0 0010 0zm0 18a8 8 0 110-16 8 8 0 010 16z"/></svg>
+                    <span class="text-xs">Главная</span>
+                </a>
+                <a href="#" @click.prevent="changePage('purchased')" class="flex flex-col items-center text-gray-400 hover:text-blue-500">
+                    <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20"><path d="M10 0a10 10 0 100 20A10 10 0 0010 0zm0 18a8 8 0 110-16 8 8 0 010 16z"/></svg>
+                    <span class="text-xs">Купленные</span>
+                </a>
+            </div>
+        </nav>
+    </div>
+
+    <script>
+        new Vue({
+            el: '#app',
+            data: {
+                title: 'Список покупок',
+                currentPage: 'home',
+                newProduct: '',
+                products: [],
+                purchasedProducts: [],
+                modalQuantity: 1,
+                modalPrice: '',
+                currentProduct: null
+            },
+            created() {
+                this.loadProducts();
+                this.loadPurchasedProducts();
+            },
+            computed: {
+                groupedPurchasedProducts() {
+					const grouped = {};
+					this.purchasedProducts.forEach(p => {
+						if (!grouped[p.month]) {
+							grouped[p.month] = { month: p.month, products: [], totalCost: 0 };
+						}
+						grouped[p.month].products.push(p);
+						grouped[p.month].totalCost += p.price * p.quantity; // Считаем общую стоимость
+					});
+					return Object.values(grouped);
+				}
+            },
+            methods: {
+                changePage(page) {
+                    this.currentPage = page;
+                    if (page === 'home') {
+                        this.title = 'Список покупок';
+                    } else if (page === 'purchased') {
+                        this.title = 'Купленные продукты';
+                    }
+                },
+                addProduct() {
+                    if (this.newProduct.trim() !== '') {
+                        this.products.push({ name: this.newProduct.trim() });
+                        this.newProduct = ''; // Очистка поля ввода
+                        this.saveProducts();
+                    }
+                },
+                removeProduct(index) {
+                    this.products.splice(index, 1);
+                    this.saveProducts();
+                },
+                openModal(product) {
+                    this.currentProduct = product;
+                    this.modalQuantity = 1; // Сброс количества
+                    this.modalPrice = ''; // Сброс цены
+                    $('#purchaseModal').removeClass('hidden'); // Открытие модального окна
+                },
+                closeModal() {
+                    $('#purchaseModal').addClass('hidden'); // Закрытие модального окна
+                },
+                confirmPurchase() {
+					if (this.currentProduct) {
+						const purchasedProduct = {
+							name: this.currentProduct.name,
+							quantity: this.modalQuantity,
+							price: parseFloat(this.modalPrice),
+							month: new Date().toLocaleString('default', { month: 'long', year: 'numeric' }) // Получаем текущий месяц
+						};
+						this.purchasedProducts.unshift(purchasedProduct); // Добавляем в начало массива
+						this.savePurchasedProducts();
+						this.removeProduct(this.products.indexOf(this.currentProduct)); // Удаляем продукт из списка
+						this.closeModal(); // Закрытие модального окна
+					}
+				},
+                saveProducts() {
+                    localStorage.setItem('products', JSON.stringify(this.products));
+                },
+                loadProducts() {
+                    const storedProducts = localStorage.getItem('products');
+                    if (storedProducts) {
+                        this.products = JSON.parse(storedProducts);
+                    }
+                },
+                savePurchasedProducts() {
+                    localStorage.setItem('purchasedProducts', JSON.stringify(this.purchasedProducts));
+                },
+                loadPurchasedProducts() {
+                    const storedPurchasedProducts = localStorage.getItem('purchasedProducts');
+                    if (storedPurchasedProducts) {
+                        this.purchasedProducts = JSON.parse(storedPurchasedProducts);
+                    }
+                }
+            }
+        });
+    </script>
+
+</body>
+</html>
